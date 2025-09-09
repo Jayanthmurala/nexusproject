@@ -14,7 +14,11 @@ async function buildServer() {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
-  await app.register(cors, { origin: "*", credentials: true });
+  await app.register(cors, {
+    origin: ["http://localhost:3000", "http://127.0.0.1:3000", "https://nexus-frontend-pi-ten.vercel.app"],
+    credentials: true,
+    allowedHeaders: ["Authorization", "Content-Type"],
+  });
 
   await app.register(swagger, {
     openapi: {
