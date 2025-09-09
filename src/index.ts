@@ -14,7 +14,7 @@ async function buildServer() {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
-  await app.register(cors, { origin: true, credentials: true });
+  await app.register(cors, { origin: "*", credentials: true });
 
   await app.register(swagger, {
     openapi: {
