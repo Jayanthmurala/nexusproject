@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
-import { z } from "zod";
+// Removed Zod import - using JSON Schema validation
 import { requireAuth, requireRole } from "../middlewares/auth";
-import { createProjectSchema, updateProjectSchema, applyProjectSchema, updateApplicationStatusSchema, createTaskSchema, updateTaskSchema, createAttachmentSchema } from "../schemas/projects";
+// Removed Zod schema imports - using JSON Schema validation
 import { prisma } from "../db";
 import { getUserScope } from "../clients/profile";
 import { emitProjectUpdate, emitApplicationUpdate } from "../utils/websocket";
@@ -12,14 +12,17 @@ export default async function projectsRoutes(app: FastifyInstance) {
   app.get("/v1/projects", {
     schema: {
       tags: ["projects"],
-      querystring: z.object({
-        q: z.string().optional(),
-        projectType: z.string().optional(),
-        progressStatus: z.string().optional(),
-        page: z.coerce.number().int().min(1).default(1).optional(),
-        limit: z.coerce.number().int().min(1).max(100).default(20).optional(),
-      }),
-      response: { 200: z.any() },
+      querystring: {
+        type: 'object',
+        properties: {
+          q: { type: 'string' },
+          projectType: { type: 'string' },
+          progressStatus: { type: 'string' },
+          page: { type: 'integer', minimum: 1, default: 1 },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 }
+        }
+      },
+      response: { 200: { type: 'object' } },
     },
   }, async (req: any, reply: any) => {
     try {
@@ -124,8 +127,8 @@ export default async function projectsRoutes(app: FastifyInstance) {
   app.get("/v1/projects/:id", {
     schema: {
       tags: ["projects"],
-      params: z.object({ id: z.string() }),
-      response: { 200: z.any() },
+      params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+      response: { 200: { type: 'object' } },
     },
   }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
@@ -166,16 +169,15 @@ export default async function projectsRoutes(app: FastifyInstance) {
       });
     }
 
-    // Faculty can see all projects in their college
     return reply.send({ project });
   });
 
-  // My projects (FACULTY)
+  // My projects (FACULTY or HEAD_ADMIN)
   app.get("/v1/projects/mine", {
-    schema: { tags: ["projects"], response: { 200: z.any() } },
+    schema: { tags: ["projects"], response: { 200: { type: 'object' } } },
   }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
-    requireRole(payload, ["FACULTY"]);
+    requireRole(payload, ["FACULTY", "HEAD_ADMIN"]);
     const { collegeId } = await getUserScope(req, payload);
     const projects = await prisma.project.findMany({
       where: { authorId: payload.sub, collegeId, archivedAt: null },
@@ -204,7 +206,28 @@ export default async function projectsRoutes(app: FastifyInstance) {
 
   // Create project (FACULTY)
   app.post("/v1/projects", {
-    schema: { tags: ["projects"], body: createProjectSchema, response: { 200: z.any() } },
+    schema: { 
+      tags: ["projects"], 
+      body: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', minLength: 1 },
+          description: { type: 'string', minLength: 1 },
+          projectDuration: { type: 'string' },
+          skills: { type: 'array', items: { type: 'string' }, default: [] },
+          projectType: { type: 'string', enum: ['PROJECT', 'RESEARCH', 'PAPER_PUBLISH', 'OTHER'] },
+          visibleToAllDepts: { type: 'boolean', default: false },
+          departments: { type: 'array', items: { type: 'string' }, default: [] },
+          maxStudents: { type: 'integer', minimum: 1 },
+          deadline: { type: 'string' },
+          tags: { type: 'array', items: { type: 'string' }, default: [] },
+          requirements: { type: 'array', items: { type: 'string' }, default: [] },
+          outcomes: { type: 'array', items: { type: 'string' }, default: [] }
+        },
+        required: ['title', 'description', 'projectType', 'maxStudents']
+      }, 
+      response: { 200: { type: 'object' } } 
+    },
   }, async (req: any, reply: any) => {
     try {
       const payload = await requireAuth(req);
@@ -216,7 +239,7 @@ export default async function projectsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ message: "Your profile is incomplete. Please contact admin to set your college affiliation." });
       }
     
-    const body = createProjectSchema.parse((req as any).body);
+    const body = (req as any).body;
     if (!body.visibleToAllDepts && (!body.departments || body.departments.length === 0)) {
       return reply.code(400).send({ message: "Specify at least one department when visibleToAllDepts=false" });
     }
@@ -266,13 +289,35 @@ export default async function projectsRoutes(app: FastifyInstance) {
 
   // Update project (FACULTY owner)
   app.put("/v1/projects/:id", {
-    schema: { tags: ["projects"], params: z.object({ id: z.string() }), body: updateProjectSchema, response: { 200: z.any() } },
+    schema: { 
+      tags: ["projects"], 
+      params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, 
+      body: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', minLength: 1 },
+          description: { type: 'string', minLength: 1 },
+          projectDuration: { type: 'string' },
+          skills: { type: 'array', items: { type: 'string' } },
+          projectType: { type: 'string', enum: ['PROJECT', 'RESEARCH', 'PAPER_PUBLISH', 'OTHER'] },
+          visibleToAllDepts: { type: 'boolean' },
+          departments: { type: 'array', items: { type: 'string' } },
+          maxStudents: { type: 'integer', minimum: 1 },
+          deadline: { type: 'string' },
+          tags: { type: 'array', items: { type: 'string' } },
+          requirements: { type: 'array', items: { type: 'string' } },
+          outcomes: { type: 'array', items: { type: 'string' } },
+          progressStatus: { type: 'string', enum: ['OPEN', 'IN_PROGRESS', 'COMPLETED'] }
+        }
+      }, 
+      response: { 200: { type: 'object' } } 
+    },
   }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
     requireRole(payload, ["FACULTY"]);
     const { id } = (req.params as any) as { id: string };
     const { collegeId } = await getUserScope(req, payload);
-    const body = updateProjectSchema.parse((req as any).body);
+    const body = (req as any).body;
     const existing = await prisma.project.findFirst({ where: { id, collegeId, authorId: payload.sub, archivedAt: null } });
     if (!existing) return reply.code(404).send({ message: "Not found" });
     const data: any = { ...body };
@@ -283,7 +328,7 @@ export default async function projectsRoutes(app: FastifyInstance) {
 
   // Delete project (FACULTY owner)
   app.delete("/v1/projects/:id", {
-    schema: { tags: ["projects"], params: z.object({ id: z.string() }), response: { 200: z.any() } },
+    schema: { tags: ["projects"], params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, response: { 200: { type: 'object' } } },
   }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
     requireRole(payload, ["FACULTY"]);
@@ -297,13 +342,23 @@ export default async function projectsRoutes(app: FastifyInstance) {
 
   // Apply to a project (STUDENT)
   app.post("/v1/projects/:id/applications", {
-    schema: { tags: ["applications"], params: z.object({ id: z.string() }), body: applyProjectSchema, response: { 200: z.any() } },
+    schema: { 
+      tags: ["applications"], 
+      params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, 
+      body: {
+        type: 'object',
+        properties: {
+          message: { type: 'string', maxLength: 2000 }
+        }
+      }, 
+      response: { 200: { type: 'object' } } 
+    },
   }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
     requireRole(payload, ["STUDENT"]);
     const { id } = (req.params as any) as { id: string };
     const { collegeId, department, displayName: nameFromProfile } = await getUserScope(req, payload);
-    const body = applyProjectSchema.parse((req as any).body);
+    const body = (req as any).body;
 
     if (!collegeId) {
       return reply.code(400).send({ message: "College ID is required to apply to projects" });
@@ -347,7 +402,7 @@ export default async function projectsRoutes(app: FastifyInstance) {
 
   // List applications for a project (FACULTY owner)
   app.get("/v1/projects/:id/applications", {
-    schema: { tags: ["applications"], params: z.object({ id: z.string() }), querystring: z.object({ status: z.string().optional() }), response: { 200: z.any() } },
+    schema: { tags: ["applications"], params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, querystring: { type: 'object', properties: { status: { type: 'string' } } }, response: { 200: { type: 'object' } } },
   }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
     requireRole(payload, ["FACULTY"]);
@@ -366,7 +421,7 @@ export default async function projectsRoutes(app: FastifyInstance) {
 
   // My applications (STUDENT)
   app.get("/v1/applications/mine", {
-    schema: { tags: ["applications"], querystring: z.object({ status: z.string().optional() }), response: { 200: z.any() } },
+    schema: { tags: ["applications"], querystring: { type: 'object', properties: { status: { type: 'string' } } }, response: { 200: { type: 'object' } } },
   }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
     requireRole(payload, ["STUDENT"]);
@@ -387,12 +442,23 @@ export default async function projectsRoutes(app: FastifyInstance) {
 
   // Update application status (FACULTY owner)
   app.put("/v1/applications/:id/status", {
-    schema: { tags: ["applications"], params: z.object({ id: z.string() }), body: updateApplicationStatusSchema, response: { 200: z.any() } },
+    schema: { 
+      tags: ["applications"], 
+      params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, 
+      body: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', enum: ['PENDING', 'ACCEPTED', 'REJECTED'] }
+        },
+        required: ['status']
+      }, 
+      response: { 200: { type: 'object' } } 
+    },
   }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
     requireRole(payload, ["FACULTY"]);
     const { id } = (req.params as any) as { id: string };
-    const body = updateApplicationStatusSchema.parse((req as any).body);
+    const body = (req as any).body;
     const { collegeId } = await getUserScope(req, payload);
     const application = await prisma.appliedProject.findUnique({
       where: { id },
@@ -413,7 +479,7 @@ export default async function projectsRoutes(app: FastifyInstance) {
   });
 
   // Comments (Collaboration)
-  app.get("/v1/projects/:id/comments", { schema: { tags: ["comments"], params: z.object({ id: z.string() }), querystring: z.object({ taskId: z.string().optional() }), response: { 200: z.any() } } }, async (req: any, reply: any) => {
+  app.get("/v1/projects/:id/comments", { schema: { tags: ["comments"], params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, querystring: { type: 'object', properties: { taskId: { type: 'string' } } }, response: { 200: { type: 'object' } } } }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
     const { id } = (req.params as any) as { id: string };
     const { collegeId } = await getUserScope(req, payload);
@@ -431,7 +497,7 @@ export default async function projectsRoutes(app: FastifyInstance) {
     return reply.send({ comments });
   });
 
-  app.post("/v1/projects/:id/comments", { schema: { tags: ["comments"], params: z.object({ id: z.string() }), body: z.object({ body: z.string().min(1), taskId: z.string().optional() }), response: { 200: z.any() } } }, async (req: any, reply: any) => {
+  app.post("/v1/projects/:id/comments", { schema: { tags: ["comments"], params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, body: { type: 'object', properties: { body: { type: 'string', minLength: 1 }, taskId: { type: 'string' } }, required: ['body'] }, response: { 200: { type: 'object' } } } }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
     const { id } = (req.params as any) as { id: string };
     const { collegeId, displayName: nameFromProfile } = await getUserScope(req, payload);
@@ -441,7 +507,7 @@ export default async function projectsRoutes(app: FastifyInstance) {
       const member = await prisma.appliedProject.findFirst({ where: { projectId: id, studentId: payload.sub, status: "ACCEPTED" as $Enums.ApplicationStatus } });
       if (!member) return reply.code(403).send({ message: "Forbidden" });
     }
-    const body = (z.object({ body: z.string().min(1), taskId: z.string().optional() })).parse((req as any).body);
+    const body = (req as any).body;
     const created = await prisma.comment.create({
       data: {
         projectId: id,
@@ -455,7 +521,7 @@ export default async function projectsRoutes(app: FastifyInstance) {
   });
 
   // Tasks
-  app.get("/v1/projects/:id/tasks", { schema: { tags: ["tasks"], params: z.object({ id: z.string() }), response: { 200: z.any() } } }, async (req: any, reply: any) => {
+  app.get("/v1/projects/:id/tasks", { schema: { tags: ["tasks"], params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, response: { 200: { type: 'object' } } } }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
     const { id } = (req.params as any) as { id: string };
     const { collegeId } = await getUserScope(req, payload);
@@ -469,14 +535,28 @@ export default async function projectsRoutes(app: FastifyInstance) {
     return reply.send({ tasks });
   });
 
-  app.post("/v1/projects/:id/tasks", { schema: { tags: ["tasks"], params: z.object({ id: z.string() }), body: createTaskSchema, response: { 200: z.any() } } }, async (req: any, reply: any) => {
+  app.post("/v1/projects/:id/tasks", { 
+    schema: { 
+      tags: ["tasks"], 
+      params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, 
+      body: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', minLength: 1 },
+          assignedToId: { type: 'string' }
+        },
+        required: ['title']
+      }, 
+      response: { 200: { type: 'object' } } 
+    } 
+  }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
     requireRole(payload, ["FACULTY"]);
     const { id } = (req.params as any) as { id: string };
     const { collegeId } = await getUserScope(req, payload);
     const project = await prisma.project.findFirst({ where: { id, collegeId, authorId: payload.sub, archivedAt: null } });
     if (!project) return reply.code(404).send({ message: "Project not found" });
-    const body = createTaskSchema.parse((req as any).body);
+    const body = (req as any).body;
     if (body.assignedToId) {
       const member = await prisma.appliedProject.findFirst({ where: { projectId: id, studentId: body.assignedToId, status: "ACCEPTED" as $Enums.ApplicationStatus } });
       if (!member) return reply.code(400).send({ message: "assignedToId must be an accepted member" });
@@ -485,10 +565,24 @@ export default async function projectsRoutes(app: FastifyInstance) {
     return reply.send({ task: created });
   });
 
-  app.put("/v1/tasks/:taskId", { schema: { tags: ["tasks"], params: z.object({ taskId: z.string() }), body: updateTaskSchema, response: { 200: z.any() } } }, async (req: any, reply: any) => {
+  app.put("/v1/tasks/:taskId", { 
+    schema: { 
+      tags: ["tasks"], 
+      params: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] }, 
+      body: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', minLength: 1 },
+          assignedToId: { type: ['string', 'null'] },
+          status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] }
+        }
+      }, 
+      response: { 200: { type: 'object' } } 
+    } 
+  }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
     const { taskId } = (req.params as any) as { taskId: string };
-    const body = updateTaskSchema.parse((req as any).body);
+    const body = (req as any).body;
     const { collegeId } = await getUserScope(req, payload);
     const task = await prisma.projectTask.findUnique({ where: { id: taskId }, include: { project: true } });
     if (!task || !task.project || task.project.collegeId !== collegeId || task.project.archivedAt) {
@@ -519,7 +613,7 @@ export default async function projectsRoutes(app: FastifyInstance) {
     return reply.code(403).send({ message: "Forbidden" });
   });
 
-  app.delete("/v1/tasks/:taskId", { schema: { tags: ["tasks"], params: z.object({ taskId: z.string() }), response: { 200: z.any() } } }, async (req: any, reply: any) => {
+  app.delete("/v1/tasks/:taskId", { schema: { tags: ["tasks"], params: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] }, response: { 200: { type: 'object' } } } }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
     const { taskId } = (req.params as any) as { taskId: string };
     const { collegeId } = await getUserScope(req, payload);
@@ -534,7 +628,7 @@ export default async function projectsRoutes(app: FastifyInstance) {
   });
 
   // Attachments
-  app.get("/v1/projects/:id/attachments", { schema: { tags: ["attachments"], params: z.object({ id: z.string() }), response: { 200: z.any() } } }, async (req: any, reply: any) => {
+  app.get("/v1/projects/:id/attachments", { schema: { tags: ["attachments"], params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, response: { 200: { type: 'object' } } } }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
     const { id } = (req.params as any) as { id: string };
     const { collegeId } = await getUserScope(req, payload);
@@ -548,7 +642,22 @@ export default async function projectsRoutes(app: FastifyInstance) {
     return reply.send({ attachments });
   });
 
-  app.post("/v1/projects/:id/attachments", { schema: { tags: ["attachments"], params: z.object({ id: z.string() }), body: createAttachmentSchema, response: { 200: z.any() } } }, async (req: any, reply: any) => {
+  app.post("/v1/projects/:id/attachments", { 
+    schema: { 
+      tags: ["attachments"], 
+      params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, 
+      body: {
+        type: 'object',
+        properties: {
+          fileName: { type: 'string', minLength: 1 },
+          fileUrl: { type: 'string', format: 'uri' },
+          fileType: { type: 'string', minLength: 1 }
+        },
+        required: ['fileName', 'fileUrl', 'fileType']
+      }, 
+      response: { 200: { type: 'object' } } 
+    } 
+  }, async (req: any, reply: any) => {
     const payload = await requireAuth(req);
     const { id } = (req.params as any) as { id: string };
     const { collegeId } = await getUserScope(req, payload);
@@ -558,7 +667,7 @@ export default async function projectsRoutes(app: FastifyInstance) {
       const member = await prisma.appliedProject.findFirst({ where: { projectId: id, studentId: payload.sub, status: "ACCEPTED" as $Enums.ApplicationStatus } });
       if (!member) return reply.code(403).send({ message: "Forbidden" });
     }
-    const body = createAttachmentSchema.parse((req as any).body);
+    const body = (req as any).body;
     const created = await prisma.projectAttachment.create({
       data: {
         projectId: id,

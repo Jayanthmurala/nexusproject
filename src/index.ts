@@ -2,22 +2,22 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import swagger from "@fastify/swagger";
 import swaggerUI from "@fastify/swagger-ui";
-import { ZodTypeProvider, serializerCompiler, validatorCompiler, jsonSchemaTransform } from "fastify-type-provider-zod";
+// Removed Zod type provider - using standard JSON Schema validation
 import { env } from "./config/env";
 import projectsRoutes from "./routes/projects.routes";
 import adminRoutes from "./routes/admin.routes";
 import { initializeWebSocket } from "./utils/websocket";
 
 async function buildServer() {
-  const app = Fastify({ logger: true }).withTypeProvider<ZodTypeProvider>();
+  const app = Fastify({ logger: true });
 
-  app.setValidatorCompiler(validatorCompiler);
-  app.setSerializerCompiler(serializerCompiler);
+  // Using standard Fastify JSON Schema validation
 
   await app.register(cors, {
     origin: ["http://localhost:3000", "http://127.0.0.1:3000", "https://nexus-frontend-pi-ten.vercel.app"],
     credentials: true,
-    allowedHeaders: ["Authorization", "Content-Type"],
+    allowedHeaders: ["Authorization", "Content-Type", "X-Requested-With"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   });
 
   await app.register(swagger, {
@@ -33,7 +33,7 @@ async function buildServer() {
         { name: "admin", description: "Head Admin endpoints" },
       ],
     },
-    transform: jsonSchemaTransform,
+    // Using standard JSON Schema transform
   });
   await app.register(swaggerUI, { routePrefix: "/docs" });
 
