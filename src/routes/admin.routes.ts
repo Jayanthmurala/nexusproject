@@ -509,6 +509,8 @@ async function adminRoutes(fastify: FastifyInstance) {
           createdAt: true,
           authorName: true,
           authorCollege: true,
+          authorDepartment: true,
+          authorMemberId: true,
           collegeId: true
         },
         orderBy: { createdAt: 'desc' }
@@ -535,7 +537,7 @@ async function adminRoutes(fastify: FastifyInstance) {
           ID: project.id,
           Title: project.title,
           Author: project.authorName,
-          College: project.authorCollege,
+          College: project.authorCollege || 'N/A',
           Status: project.moderationStatus,
           Progress: project.progressStatus,
           Applications: project.applicationCount,

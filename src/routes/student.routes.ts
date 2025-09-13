@@ -449,7 +449,32 @@ export default async function studentRoutes(app: FastifyInstance) {
       // Get projects with application counts and user's application status
       const projects = await prisma.project.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          collegeId: true,
+          authorId: true,
+          authorName: true,
+          authorAvatar: true,
+          authorDepartment: true,
+          authorCollege: true,
+          authorMemberId: true,
+          title: true,
+          description: true,
+          projectDuration: true,
+          skills: true,
+          departments: true,
+          visibleToAllDepts: true,
+          projectType: true,
+          moderationStatus: true,
+          progressStatus: true,
+          maxStudents: true,
+          deadline: true,
+          tags: true,
+          requirements: true,
+          outcomes: true,
+          createdAt: true,
+          updatedAt: true,
+          archivedAt: true,
           _count: {
             select: {
               applications: {
