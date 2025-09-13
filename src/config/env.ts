@@ -11,7 +11,7 @@ function requireEnv(name: string): string {
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
   PORT: Number(process.env.PORT ?? 4003),
-  DATABASE_URL: requireEnv("DATABASE_URL"),
+  DATABASE_URL: process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/nexus_auth?schema=projectsvc",
 
   AUTH_JWKS_URL: process.env.AUTH_JWKS_URL ?? "http://localhost:4001/.well-known/jwks.json",
   AUTH_JWT_ISSUER: process.env.AUTH_JWT_ISSUER ?? "nexus-auth",

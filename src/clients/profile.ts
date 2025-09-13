@@ -6,7 +6,15 @@ import { getCache, CACHE_KEYS, CACHE_TTL } from "../utils/cache";
 // Cache instance
 const cache = getCache();
 
-export async function getUserScope(req: any, payload: AccessTokenPayload): Promise<{ collegeId?: string; department?: string; avatar?: string; displayName?: string; year?: number }> {
+export interface UserScope {
+  collegeId?: string;
+  department?: string;
+  avatar?: string;
+  displayName?: string;
+  year?: number;
+}
+
+export async function getUserScope(req: any, payload: AccessTokenPayload): Promise<UserScope> {
   const cacheKey = CACHE_KEYS.USER_SCOPE(payload.sub);
   
   // Check Redis/cache first

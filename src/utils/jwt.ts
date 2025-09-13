@@ -15,9 +15,29 @@ export type AccessTokenPayload = JWTPayload & {
 };
 
 export async function verifyAccessToken(token: string): Promise<AccessTokenPayload> {
-  const { payload } = await jwtVerify(token, JWKS, {
-    issuer: env.AUTH_JWT_ISSUER,
-    audience: env.AUTH_JWT_AUDIENCE,
-  });
-  return payload as AccessTokenPayload;
+  try {
+    console.log('[JWT] Verifying token with config:', {
+      issuer: env.AUTH_JWT_ISSUER,
+      audience: env.AUTH_JWT_AUDIENCE,
+      jwksUrl: env.AUTH_JWKS_URL
+    });
+    
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: env.AUTH_JWT_ISSUER,
+      audience: env.AUTH_JWT_AUDIENCE,
+    });
+    
+    console.log('[JWT] Token verified successfully:', {
+      sub: payload.sub,
+      email: payload.email,
+      roles: payload.roles,
+      iss: payload.iss,
+      aud: payload.aud
+    });
+    
+    return payload as AccessTokenPayload;
+  } catch (error) {
+    console.error('[JWT] Token verification failed:', error);
+    throw error;
+  }
 }

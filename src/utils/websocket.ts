@@ -12,7 +12,7 @@ export interface ProjectUpdateEvent {
 }
 
 export interface ApplicationUpdateEvent {
-  type: 'new-application' | 'application-status-changed';
+  type: 'new-application' | 'application-status-changed' | 'application-withdrawn';
   application: any;
   projectId: string;
   collegeId: string;
@@ -88,7 +88,16 @@ export function getWebSocketInstance(): SocketIOServer | null {
 }
 
 // Emit project updates to relevant users
-export function emitProjectUpdate(event: ProjectUpdateEvent): void {
+export function emitProjectUpdate(projectId: string, event: any): void {
+  if (!io) return;
+
+  // For task-related events, emit to project room
+  io!.to(`project:${projectId}`).emit('project-update', event);
+  console.log(`Emitted project update for project ${projectId}`);
+}
+
+// Emit project updates to relevant users (original function)
+export function emitProjectUpdateToCollege(event: ProjectUpdateEvent): void {
   if (!io) return;
 
   const { collegeId, departments, visibleToAllDepts } = event;
@@ -107,7 +116,7 @@ export function emitProjectUpdate(event: ProjectUpdateEvent): void {
 }
 
 // Emit application updates to faculty
-export function emitApplicationUpdate(event: ApplicationUpdateEvent, facultyUserId: string): void {
+export function emitApplicationUpdate(facultyUserId: string, event: ApplicationUpdateEvent): void {
   if (!io) return;
 
   io!.to(`faculty:${facultyUserId}:applications`).emit('application-update', event);

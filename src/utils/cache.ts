@@ -137,10 +137,12 @@ export function getCache(): Cache {
 export const CACHE_KEYS = {
   USER_SCOPE: (userId: string) => `user_scope:${userId}`,
   USER_IDENTITY: (userId: string) => `user_identity:${userId}`,
+  COLLEGE_DEPARTMENTS: (collegeId: string) => `college_departments:${collegeId}`,
 } as const;
 
 export const CACHE_TTL = {
   USER_SCOPE: 30 * 60, // 30 minutes
   USER_IDENTITY: 30 * 60, // 30 minutes
+  COLLEGE_DEPARTMENTS: 60 * 60, // 1 hour
   BACKGROUND_REFRESH_THRESHOLD: 0.8, // Refresh when 80% of TTL elapsed
 } as const;

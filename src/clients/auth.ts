@@ -12,6 +12,7 @@ export interface UserIdentity {
   collegeId: string;
   department: string;
   year?: number;
+  collegeMemberId?: string;
 }
 
 // Cache instance
@@ -43,6 +44,7 @@ export async function getUserIdentity(userId: string, authHeader: string): Promi
     collegeId: user.collegeId,
     department: user.department,
     year: user.year,
+    collegeMemberId: user.collegeMemberId,
   };
 
   // Cache the identity
@@ -55,6 +57,7 @@ export function getUserScopeFromJWT(payload: AccessTokenPayload): {
   department?: string;
   year?: number;
   displayName?: string;
+  avatar?: string;
 } {
   // Extract from new JWT structure with profile object
   const profile = (payload as any).profile;
@@ -64,6 +67,7 @@ export function getUserScopeFromJWT(payload: AccessTokenPayload): {
       department: profile.department,
       year: profile.year,
       displayName: payload.displayName || (payload as any).name,
+      avatar: profile.avatar,
     };
   }
 
@@ -98,4 +102,48 @@ export function refreshIdentityInBackground(userId: string, authHeader: string):
   getUserIdentity(userId, authHeader).catch(error => {
     console.warn(`Background refresh failed for user ${userId}:`, error);
   });
+}
+
+// Get college departments from auth service
+export async function getCollegeDepartments(collegeId: string, authHeader: string): Promise<string[]> {
+  const cacheKey = CACHE_KEYS.COLLEGE_DEPARTMENTS(collegeId);
+  
+  // Check cache first
+  const cached = await getCachedDepartments(cacheKey);
+  if (cached) return cached;
+
+  const res = await fetch(`${env.AUTH_BASE_URL}/v1/colleges/${collegeId}/departments`, {
+    headers: { Authorization: authHeader },
+  });
+  
+  if (!res.ok) {
+    throw new Error(`Auth service responded ${res.status}`);
+  }
+  
+  const data = await res.json();
+  const departments = data.departments || [];
+
+  // Cache the departments
+  await setCachedDepartments(cacheKey, departments);
+  return departments;
+}
+
+async function getCachedDepartments(cacheKey: string): Promise<string[] | null> {
+  try {
+    const cached = await cache.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (error) {
+    console.warn("Cache get error:", error);
+  }
+  return null;
+}
+
+async function setCachedDepartments(cacheKey: string, departments: string[]): Promise<void> {
+  try {
+    await cache.set(cacheKey, JSON.stringify(departments), CACHE_TTL.COLLEGE_DEPARTMENTS);
+  } catch (error) {
+    console.warn("Cache set error:", error);
+  }
 }
