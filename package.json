@@ -19,6 +19,7 @@
     "@prisma/client": "^6.14.0",
     "@types/redis": "^4.0.11",
     "@types/socket.io": "^3.0.2",
+    "@vercel/node": "^5.3.22",
     "dotenv": "^16.4.5",
     "fastify": "^4.29.1",
     "fastify-type-provider-zod": "^1.2.0",
